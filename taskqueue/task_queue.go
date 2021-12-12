@@ -31,10 +31,6 @@ const consumeScriptPath = "./taskqueue/consume.lua"
 
 func NewTaskQueue(ctx context.Context, options *Options) (*TaskQueue, error) {
 	options.setDefaults()
-
-	ctx, cancel := context.WithTimeout(ctx, options.OperationTimeout)
-	defer cancel()
-
 	redisClient := redis.NewClient(&redis.Options{Addr: options.Address})
 
 	consumeScriptBytes, err := os.ReadFile(consumeScriptPath)
@@ -60,8 +56,6 @@ func NewTaskQueue(ctx context.Context, options *Options) (*TaskQueue, error) {
 }
 
 func (t *TaskQueue) ProduceAt(ctx context.Context, payload interface{}, executeAt time.Time) (uuid.UUID, error) {
-	ctx, cancel := t.context(ctx)
-	defer cancel()
 	logger := newLogger()
 
 	task := &Task{
@@ -84,8 +78,6 @@ func (t *TaskQueue) Consume(
 	ctx context.Context,
 	consume func(context.Context, uuid.UUID, interface{}) error,
 ) error {
-	ctx, cancel := t.context(ctx)
-	defer cancel()
 	logger := newLogger()
 
 	now := time.Now()
@@ -135,10 +127,6 @@ func (t *TaskQueue) Consume(
 	logger.Debug("successfully consumed task")
 
 	return nil
-}
-
-func (t *TaskQueue) context(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, t.operationTimeout)
 }
 
 func (t *TaskQueue) produceAt(
