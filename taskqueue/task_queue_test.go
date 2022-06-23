@@ -2,6 +2,8 @@ package taskqueue_test
 
 import (
 	"context"
+	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -17,8 +19,11 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	now := time.Now()
-	var mockRedis *taskqueue.MockRedis
+	var (
+		now       = time.Now()
+		mockRedis *taskqueue.MockRedis
+		ctx       = context.Background()
+	)
 
 	type fields struct {
 		queueKey         string
@@ -38,7 +43,7 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		mock    func()
+		mock    func(*testing.T)
 		wantErr bool
 	}{
 		{
@@ -52,13 +57,30 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 				operationTimeout: time.Minute,
 			},
 			args: args{
-				ctx:       context.Background(),
+				ctx:       ctx,
 				payload:   map[string]interface{}{"test": true},
 				executeAt: now,
 			},
-			mock: func() {
-				mockRedis.EXPECT().ScriptLoad(gomock.Any(), gomock.Any()).Return(redis.NewStringCmd(context.Background()))
-				mockRedis.EXPECT().ZAdd(gomock.Any(), gomock.Any(), gomock.Any()).Return(redis.NewIntCmd(context.Background()))
+			mock: func(t *testing.T) {
+				mockRedis.EXPECT().
+					ScriptLoad(ctx, readScriptFile(t)).
+					Return(redis.NewStringCmd(ctx))
+
+				mockRedis.EXPECT().
+					ZAdd(ctx, "taskqueue:test-namespace:tasks:test-queue", gomock.Any()).
+					DoAndReturn(func(_ context.Context, _ string, redisZ *redis.Z) *redis.IntCmd {
+						if redisZ.Score != float64(now.Unix()) {
+							t.Errorf("TaskQueue.ProduceAt() expected = %v, wantErr %v", redisZ.Score, float64(now.Unix()))
+						}
+
+						payload := redisZ.Member.(*taskqueue.Task).Payload
+						expectedPayload := map[string]interface{}{"test": true}
+						if !reflect.DeepEqual(payload, expectedPayload) {
+							t.Errorf("TaskQueue.ProduceAt() expectedPayload = %v, wantPayload %v", expectedPayload, payload)
+						}
+
+						return redis.NewIntCmd(ctx)
+					})
 			},
 			wantErr: false,
 		},
@@ -67,7 +89,7 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRedis = taskqueue.NewMockRedis(ctrl)
 
-			tt.mock()
+			tt.mock(t)
 
 			taskQueue, err := taskqueue.NewTaskQueue(
 				tt.args.ctx,
@@ -96,4 +118,15 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func readScriptFile(t *testing.T) string {
+	t.Helper()
+
+	consumeScriptBytes, err := os.ReadFile("consume.lua")
+	if err != nil {
+		t.Fatalf("failed to read consume.lua file: %s", err)
+	}
+
+	return string(consumeScriptBytes)
 }

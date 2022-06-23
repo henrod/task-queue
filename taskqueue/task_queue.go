@@ -30,6 +30,10 @@ type Task struct {
 	Wait       time.Duration
 }
 
+func (t *Task) MarshalBinary() (data []byte, err error) {
+	return json.Marshal(t)
+}
+
 func NewTaskQueue(ctx context.Context, redisClient Redis, options *Options) (*TaskQueue, error) {
 	options.setDefaults()
 
@@ -171,14 +175,9 @@ func (t *TaskQueue) produceAt(
 	task *Task,
 	executeAt time.Time,
 ) error {
-	bTask, err := json.Marshal(task)
-	if err != nil {
-		return fmt.Errorf("failed to json marshal message: %w", err)
-	}
-
 	if err := t.redis.ZAdd(ctx, t.taskQueueKey, &redis.Z{
 		Score:  float64(executeAt.Unix()),
-		Member: string(bTask),
+		Member: task,
 	}).Err(); err != nil {
 		return fmt.Errorf("failed to zadd message: %w", err)
 	}
