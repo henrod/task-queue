@@ -2,6 +2,7 @@ package taskqueue_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"reflect"
 	"testing"
@@ -84,6 +85,36 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "test_failed_redis_err",
+			fields: fields{
+				queueKey:         "test-queue",
+				namespace:        "test-namespace",
+				storageAddress:   "",
+				workerID:         "worker-0",
+				maxRetries:       0,
+				operationTimeout: time.Minute,
+			},
+			args: args{
+				ctx:       ctx,
+				payload:   map[string]interface{}{"test": false},
+				executeAt: now,
+			},
+			mock: func(t *testing.T) {
+				mockRedis.EXPECT().
+					ScriptLoad(ctx, readScriptFile(t)).
+					Return(redis.NewStringCmd(ctx))
+
+				mockRedis.EXPECT().
+					ZAdd(ctx, "taskqueue:test-namespace:tasks:test-queue", gomock.Any()).
+					DoAndReturn(func(_ context.Context, _ string, redisZ *redis.Z) *redis.IntCmd {
+						cmd := redis.NewIntCmd(ctx)
+						cmd.SetErr(errors.New("some error"))
+						return cmd
+					})
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -108,12 +139,12 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 				return
 			}
 
-			got, err := taskQueue.ProduceAt(tt.args.ctx, tt.args.payload, tt.args.executeAt)
+			got, err := taskQueue.ProduceAt(tt.args.ctx, tt.args.payload, tt.args.executeAt)			
 			if (err != nil) != tt.wantErr {
 				t.Errorf("TaskQueue.ProduceAt() error = %v, wantErr %v", err, tt.wantErr)
 				return
-			}
-			if got == uuid.Nil {
+			} 
+			if got == uuid.Nil && !tt.wantErr {
 				t.Errorf("TaskQueue.ProduceAt() = %v, want not nil", got)
 			}
 		})
