@@ -2,9 +2,11 @@ package taskqueue
 
 import "time"
 
+// TODO: receive user's logger as optional
 type Options struct {
+	QueueKey         string
 	Namespace        string
-	Address          string
+	StorageAddress   string
 	WorkerID         string
 	MaxRetries       int
 	OperationTimeout time.Duration
@@ -15,8 +17,8 @@ func (o *Options) setDefaults() {
 		o.Namespace = "default"
 	}
 
-	if o.Address == "" {
-		o.Address = "localhost:6379"
+	if o.StorageAddress == "" {
+		o.StorageAddress = "localhost:6379"
 	}
 
 	if o.WorkerID == "" {
@@ -29,5 +31,9 @@ func (o *Options) setDefaults() {
 
 	if o.OperationTimeout == 0 {
 		o.OperationTimeout = 5 * time.Second
+	}
+
+	if o.QueueKey == "" {
+		o.QueueKey = "taskqueue"
 	}
 }
