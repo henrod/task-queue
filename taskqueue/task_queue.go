@@ -32,7 +32,7 @@ const consumeScriptPath = "./taskqueue/consume.lua"
 
 func NewTaskQueue(ctx context.Context, options *Options) (*TaskQueue, error) {
 	options.setDefaults()
-	redisClient := redis.NewClient(&redis.Options{Addr: options.Address})
+	redisClient := redis.NewClient(&redis.Options{Addr: options.StorageAddress})
 
 	consumeScriptBytes, err := os.ReadFile(consumeScriptPath)
 	if err != nil {

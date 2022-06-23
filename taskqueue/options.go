@@ -4,12 +4,12 @@ import "time"
 
 // TODO: receive user's logger as optional
 type Options struct {
+	QueueKey         string
 	Namespace        string
-	Address          string
+	StorageAddress   string
 	WorkerID         string
 	MaxRetries       int
 	OperationTimeout time.Duration
-	QueueKey         string
 }
 
 func (o *Options) setDefaults() {
@@ -17,8 +17,8 @@ func (o *Options) setDefaults() {
 		o.Namespace = "default"
 	}
 
-	if o.Address == "" {
-		o.Address = "localhost:6379"
+	if o.StorageAddress == "" {
+		o.StorageAddress = "localhost:6379"
 	}
 
 	if o.WorkerID == "" {
