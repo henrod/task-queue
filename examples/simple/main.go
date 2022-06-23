@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 
 	"github.com/Henrod/task-queue/taskqueue"
-	"github.com/google/uuid"
 )
 
 type Payload struct {

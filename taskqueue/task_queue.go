@@ -45,8 +45,8 @@ func NewTaskQueue(ctx context.Context, options *Options) (*TaskQueue, error) {
 
 	taskQueue := &TaskQueue{
 		redis:             redisClient,
-		taskQueueKey:      fmt.Sprintf("taskqueue:%s:tasks", options.Namespace),
-		inProgressTaskKey: fmt.Sprintf("taskqueue:%s:workers:%s:tasks", options.Namespace, options.WorkerID),
+		taskQueueKey:      fmt.Sprintf("taskqueue:%s:tasks:%s", options.Namespace, options.QueueKey),
+		inProgressTaskKey: fmt.Sprintf("taskqueue:%s:workers:%s:tasks:%s", options.Namespace, options.WorkerID, options.QueueKey),
 		consumeScriptSha:  consumeScriptSHA,
 		maxRetries:        options.MaxRetries,
 		operationTimeout:  options.OperationTimeout,

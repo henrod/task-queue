@@ -8,6 +8,7 @@ type Options struct {
 	WorkerID         string
 	MaxRetries       int
 	OperationTimeout time.Duration
+	QueueKey         string
 }
 
 func (o *Options) setDefaults() {
@@ -29,5 +30,9 @@ func (o *Options) setDefaults() {
 
 	if o.OperationTimeout == 0 {
 		o.OperationTimeout = 5 * time.Second
+	}
+
+	if o.QueueKey == "" {
+		o.QueueKey = "taskqueue"
 	}
 }
