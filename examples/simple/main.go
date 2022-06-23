@@ -89,14 +89,16 @@ func main() {
 
 	go handleStop(cancel)
 
-	taskQueue, err := taskqueue.NewTaskQueue(ctx, &taskqueue.Options{
+	options := &taskqueue.Options{
 		QueueKey:         "dummy-consumer",
 		Namespace:        "simple",
 		StorageAddress:   "localhost:6379",
 		WorkerID:         "worker1",
 		MaxRetries:       -1,
 		OperationTimeout: time.Minute,
-	})
+	}
+
+	taskQueue, err := taskqueue.NewTaskQueue(ctx, taskqueue.NewDefaultRedis(options), options)
 	if err != nil {
 		panic(err)
 	}
