@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -18,8 +17,6 @@ type Payload struct {
 	Body string
 }
 
-var wg sync.WaitGroup
-
 func handleStop(cancel context.CancelFunc) {
 	logger := logrus.New()
 	sigs := make(chan os.Signal, 1)
@@ -31,8 +28,8 @@ func handleStop(cancel context.CancelFunc) {
 }
 
 const (
-	TYPE_CONSUMER = "consumer"
-	TYPE_PRODUCER = "producer"
+	typeConsumer = "consumer"
+	typeProducer = "producer"
 )
 
 func runConsumer(ctx context.Context, taskQueue *taskqueue.TaskQueue) {
@@ -104,9 +101,9 @@ func main() {
 	}
 
 	switch serverType {
-	case TYPE_CONSUMER:
+	case typeConsumer:
 		runConsumer(ctx, taskQueue)
-	case TYPE_PRODUCER:
+	case typeProducer:
 		runProducer(ctx, taskQueue)
 	}
 }
