@@ -84,7 +84,7 @@ func (t *TaskQueue) ProduceAt(ctx context.Context, payload interface{}, executeA
 
 func (t *TaskQueue) Consume(
 	ctx context.Context,
-	consume func(context.Context, uuid.UUID, interface{}) error,
+	consume func(ctx context.Context, taskID uuid.UUID, payload interface{}) error,
 ) {
 	var (
 		ticker = time.NewTicker(time.Second)

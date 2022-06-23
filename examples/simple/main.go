@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -14,11 +13,52 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	TYPE_CONSUMER = "consumer"
+	TYPE_PRODUCER = "producer"
+)
+
 type Payload struct {
 	Body string
 }
 
-var wg sync.WaitGroup
+func myJobfunc(ctx context.Context, taskID uuid.UUID, payload interface{}) error {
+	// err := doSomethingWithYourMessage
+	// if err != nil {
+	// 	return fmt.Errorf("error while running my job func: %w", err)
+	// }
+	return nil // if no error happened during the job execution
+}
+
+func main() {
+	logrus.SetLevel(logrus.DebugLevel)
+	serverType := os.Args[1]
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go handleStop(cancel)
+
+	options := &taskqueue.Options{
+		QueueKey:         "dummy-consumer",
+		Namespace:        "simple",
+		StorageAddress:   "localhost:6379",
+		WorkerID:         "worker1",
+		MaxRetries:       -1,
+		OperationTimeout: time.Minute,
+	}
+
+	taskQueue, err := taskqueue.NewTaskQueue(ctx, taskqueue.NewDefaultRedis(options), options)
+	if err != nil {
+		panic(err)
+	}
+
+	switch serverType {
+	case TYPE_CONSUMER:
+		runConsumer(ctx, taskQueue)
+	case TYPE_PRODUCER:
+		runProducer(ctx, taskQueue)
+	}
+}
 
 func handleStop(cancel context.CancelFunc) {
 	logger := logrus.New()
@@ -29,11 +69,6 @@ func handleStop(cancel context.CancelFunc) {
 	logger.Info("received termination signal, waiting for operations to finish")
 	cancel()
 }
-
-const (
-	TYPE_CONSUMER = "consumer"
-	TYPE_PRODUCER = "producer"
-)
 
 func runConsumer(ctx context.Context, taskQueue *taskqueue.TaskQueue) {
 	logger := logrus.New().WithFields(logrus.Fields{
@@ -78,35 +113,5 @@ func runProducer(ctx context.Context, taskQueue *taskqueue.TaskQueue) {
 			logger.Info("stopping")
 			return
 		}
-	}
-}
-
-func main() {
-	logrus.SetLevel(logrus.DebugLevel)
-	serverType := os.Args[1]
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	go handleStop(cancel)
-
-	options := &taskqueue.Options{
-		QueueKey:         "dummy-consumer",
-		Namespace:        "simple",
-		StorageAddress:   "localhost:6379",
-		WorkerID:         "worker1",
-		MaxRetries:       -1,
-		OperationTimeout: time.Minute,
-	}
-
-	taskQueue, err := taskqueue.NewTaskQueue(ctx, taskqueue.NewDefaultRedis(options), options)
-	if err != nil {
-		panic(err)
-	}
-
-	switch serverType {
-	case TYPE_CONSUMER:
-		runConsumer(ctx, taskQueue)
-	case TYPE_PRODUCER:
-		runProducer(ctx, taskQueue)
 	}
 }
