@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 type TaskQueue struct {
@@ -74,7 +75,7 @@ func (t *TaskQueue) ProduceAt(ctx context.Context, payload interface{}, executeA
 	return task.ID, nil
 }
 
-func (t *TaskQueue) Consume(
+func (t *TaskQueue) consume(
 	ctx context.Context,
 	consume func(context.Context, uuid.UUID, interface{}) error,
 ) error {
@@ -129,8 +130,34 @@ func (t *TaskQueue) Consume(
 	return nil
 }
 
-func (t *TaskQueue) produceAt(
+func (t *TaskQueue) Consume(
 	ctx context.Context,
+	consume func(context.Context, uuid.UUID, interface{}) error,
+) {
+	var (
+		ticker = time.NewTicker(time.Second)
+		logger = newLogger().WithFields(logrus.Fields{
+			"operation": "consumer",
+		})
+	)
+
+	for {
+		select {
+		case <-ticker.C:
+			logger.Info("consuming task")
+			if err := t.consume(ctx, consume); err != nil {
+				// TODO: report error
+				logger.WithError(err).Error("failed to call consume function")
+			}
+
+		case <-ctx.Done():
+			logger.Info("stopping")
+			return
+		}
+	}
+}
+
+func (t *TaskQueue) produceAt(ctx context.Context,
 	task *Task,
 	executeAt time.Time,
 ) error {

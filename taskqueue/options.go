@@ -2,6 +2,7 @@ package taskqueue
 
 import "time"
 
+// TODO: receive user's logger as optional
 type Options struct {
 	Namespace        string
 	Address          string
