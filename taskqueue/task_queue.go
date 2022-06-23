@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -13,7 +15,7 @@ import (
 )
 
 type TaskQueue struct {
-	redis             *redis.Client
+	redis             Redis
 	taskQueueKey      string
 	inProgressTaskKey string
 	consumeScriptSha  string
@@ -28,13 +30,10 @@ type Task struct {
 	Wait       time.Duration
 }
 
-const consumeScriptPath = "./taskqueue/consume.lua"
-
-func NewTaskQueue(ctx context.Context, options *Options) (*TaskQueue, error) {
+func NewTaskQueue(ctx context.Context, redisClient Redis, options *Options) (*TaskQueue, error) {
 	options.setDefaults()
-	redisClient := redis.NewClient(&redis.Options{Addr: options.StorageAddress})
 
-	consumeScriptBytes, err := os.ReadFile(consumeScriptPath)
+	consumeScriptBytes, err := os.ReadFile(getConsumeScriptPath())
 	if err != nil {
 		return nil, fmt.Errorf("failed to read consume script file: %w", err)
 	}
@@ -56,6 +55,10 @@ func NewTaskQueue(ctx context.Context, options *Options) (*TaskQueue, error) {
 	return taskQueue, nil
 }
 
+func NewDefaultRedis(options *Options) Redis {
+	return redis.NewClient(&redis.Options{Addr: options.StorageAddress})
+}
+
 func (t *TaskQueue) ProduceAt(ctx context.Context, payload interface{}, executeAt time.Time) (uuid.UUID, error) {
 	logger := newLogger()
 
@@ -73,6 +76,39 @@ func (t *TaskQueue) ProduceAt(ctx context.Context, payload interface{}, executeA
 	}
 
 	return task.ID, nil
+}
+
+func (t *TaskQueue) Consume(
+	ctx context.Context,
+	consume func(context.Context, uuid.UUID, interface{}) error,
+) {
+	var (
+		ticker = time.NewTicker(time.Second)
+		logger = newLogger().WithFields(logrus.Fields{
+			"operation": "consumer",
+		})
+	)
+
+	for {
+		select {
+		case <-ticker.C:
+			logger.Info("consuming task")
+			if err := t.consume(ctx, consume); err != nil {
+				// TODO: report error
+				logger.WithError(err).Error("failed to call consume function")
+			}
+
+		case <-ctx.Done():
+			logger.Info("stopping")
+			return
+		}
+	}
+}
+
+func getConsumeScriptPath() string {
+	_, b, _, _ := runtime.Caller(0)
+	basepath := filepath.Dir(b)
+	return filepath.Join(basepath, "consume.lua")
 }
 
 func (t *TaskQueue) consume(
@@ -130,34 +166,8 @@ func (t *TaskQueue) consume(
 	return nil
 }
 
-func (t *TaskQueue) Consume(
+func (t *TaskQueue) produceAt(
 	ctx context.Context,
-	consume func(context.Context, uuid.UUID, interface{}) error,
-) {
-	var (
-		ticker = time.NewTicker(time.Second)
-		logger = newLogger().WithFields(logrus.Fields{
-			"operation": "consumer",
-		})
-	)
-
-	for {
-		select {
-		case <-ticker.C:
-			logger.Info("consuming task")
-			if err := t.consume(ctx, consume); err != nil {
-				// TODO: report error
-				logger.WithError(err).Error("failed to call consume function")
-			}
-
-		case <-ctx.Done():
-			logger.Info("stopping")
-			return
-		}
-	}
-}
-
-func (t *TaskQueue) produceAt(ctx context.Context,
 	task *Task,
 	executeAt time.Time,
 ) error {
