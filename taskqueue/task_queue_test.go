@@ -177,7 +177,7 @@ func TestTaskQueue_ProduceAt(t *testing.T) { //nolint:funlen
 			wantErr: false,
 		},
 		{
-			name: "test_failed_redis_err",
+			name: "test_zadd_error",
 			fields: fields{
 				queueKey:         "test-queue",
 				namespace:        "test-namespace",
