@@ -3,6 +3,7 @@ package deprecated
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -12,7 +13,12 @@ import (
 	"github.com/topfreegames/go-workers"
 )
 
-var baseOptions *taskqueue.Options // nolint:gochecknoglobals
+var (
+	baseOptions      *taskqueue.Options              // nolint:gochecknoglobals
+	taskQueueMapping map[string]*taskqueue.TaskQueue // nolint:gochecknoglobals
+)
+
+var ErrQueueNotFound = errors.New("queue not registered to Process yet")
 
 type jobFunc func(message *workers.Msg)
 
@@ -46,6 +52,8 @@ func Process(queue string, job jobFunc, concurrency int) {
 		return
 	}
 
+	taskQueueMapping[queue] = taskQueue
+
 	go taskQueue.Consume(ctx, func(ctx context.Context, taskID uuid.UUID, payload interface{}) (err error) {
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {
@@ -69,4 +77,26 @@ func Process(queue string, job jobFunc, concurrency int) {
 
 		return nil
 	})
+}
+
+func Enqueue(queue, class string, args interface{}) (string, error) {
+	taskQueue, ok := taskQueueMapping[queue]
+	if !ok {
+		return "", fmt.Errorf("%w: %s", ErrQueueNotFound, queue)
+	}
+
+	taskID, err := taskQueue.ProduceAt(
+		context.Background(),
+		args,
+		time.Now(),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to enqueue: %w", err)
+	}
+
+	return taskID.String(), nil
+}
+
+func EnqueueWithOptions(queue, class string, args interface{}, opts workers.EnqueueOptions) (string, error) {
+	return Enqueue(queue, class, args)
 }
