@@ -142,7 +142,7 @@ func TestTaskQueue_ProduceAt(t *testing.T) { //nolint:funlen
 		{
 			name: "test_success",
 			fields: fields{
-				queueKey:         "test-queue",
+				queueKey:         "test-queue1",
 				namespace:        "test-namespace",
 				storageAddress:   "",
 				workerID:         "worker-0",
@@ -159,7 +159,7 @@ func TestTaskQueue_ProduceAt(t *testing.T) { //nolint:funlen
 					Return(redis.NewStringCmd(ctx))
 
 				mockRedis.EXPECT().
-					ZAdd(ctx, "taskqueue:test-namespace:tasks:test-queue", gomock.Any()).
+					ZAdd(ctx, "taskqueue:test-namespace:tasks:test-queue1", gomock.Any()).
 					DoAndReturn(func(_ context.Context, _ string, redisZ *redis.Z) *redis.IntCmd {
 						if redisZ.Score != float64(now.Unix()) {
 							t.Errorf("TaskQueue.ProduceAt() expected = %v, wantErr %v", redisZ.Score, float64(now.Unix()))
@@ -179,7 +179,7 @@ func TestTaskQueue_ProduceAt(t *testing.T) { //nolint:funlen
 		{
 			name: "test_zadd_error",
 			fields: fields{
-				queueKey:         "test-queue",
+				queueKey:         "test-queue1",
 				namespace:        "test-namespace",
 				storageAddress:   "",
 				workerID:         "worker-0",
@@ -198,7 +198,7 @@ func TestTaskQueue_ProduceAt(t *testing.T) { //nolint:funlen
 				cmd := redis.NewIntCmd(ctx)
 				cmd.SetErr(errSomeError)
 				mockRedis.EXPECT().
-					ZAdd(ctx, "taskqueue:test-namespace:tasks:test-queue", gomock.Any()).
+					ZAdd(ctx, "taskqueue:test-namespace:tasks:test-queue1", gomock.Any()).
 					Return(cmd)
 			},
 			wantErr: true,
@@ -240,6 +240,101 @@ func TestTaskQueue_ProduceAt(t *testing.T) { //nolint:funlen
 			if got == uuid.Nil && !test.wantErr {
 				t.Errorf("TaskQueue.ProduceAt() = %v, want not nil", got)
 			}
+		})
+	}
+}
+
+func TestTaskQueue_Consume(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		mockRedis *taskqueue.MockRedis
+	)
+
+	type fields struct {
+		queueKey         string
+		namespace        string
+		storageAddress   string
+		workerID         string
+		maxRetries       int
+		operationTimeout time.Duration
+	}
+	type args struct {
+		ctx     context.Context
+		consume func(context.CancelFunc) taskqueue.ConsumeFunc
+	}
+
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		mock    func(*testing.T, context.Context)
+		wantErr bool
+	}{
+		{
+			name: "test_success",
+			fields: fields{
+				queueKey:         "test-queue",
+				namespace:        "test-namespace",
+				storageAddress:   "",
+				workerID:         "worker-0",
+				maxRetries:       0,
+				operationTimeout: time.Minute,
+			},
+			args: args{
+				ctx: context.Background(),
+				consume: func(cancelFunc context.CancelFunc) taskqueue.ConsumeFunc {
+					return func(context.Context, uuid.UUID, interface{}) error {
+						cancelFunc()
+						return nil
+					}
+
+				},
+			},
+			mock: func(t *testing.T, ctx context.Context) {
+				taskBytes, _ := new(taskqueue.Task).MarshalBinary()
+				mockRedis.EXPECT().
+					ScriptLoad(ctx, readScriptFile(t)).
+					Return(redis.NewStringCmd(ctx))
+
+				mockRedis.EXPECT().
+					EvalSha(ctx, gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(redis.NewCmdResult(string(taskBytes), nil))
+
+				mockRedis.EXPECT().
+					Del(ctx, gomock.Any()).
+					Return(redis.NewIntCmd(ctx))
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRedis = taskqueue.NewMockRedis(ctrl)
+			ctx, cancel := context.WithCancel(tt.args.ctx)
+
+			tt.mock(t, ctx)
+
+			taskQueue, err := taskqueue.NewTaskQueue(
+				ctx,
+				mockRedis,
+				&taskqueue.Options{
+					QueueKey:         tt.fields.queueKey,
+					Namespace:        tt.fields.namespace,
+					StorageAddress:   tt.fields.storageAddress,
+					WorkerID:         tt.fields.workerID,
+					MaxRetries:       tt.fields.maxRetries,
+					OperationTimeout: tt.fields.operationTimeout,
+				},
+			)
+			if err != nil {
+				t.Errorf("taskqueue.NewTaskQueue error = %v", err)
+			}
+
+			taskQueue.Consume(ctx, tt.args.consume(cancel))
 		})
 	}
 }
