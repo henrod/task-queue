@@ -42,6 +42,7 @@ func runConsumer(ctx context.Context, taskQueue *taskqueue.TaskQueue) {
 		ctx,
 		func(ctx context.Context, taskID uuid.UUID, payload interface{}) error {
 			logger.Printf("consumed task %s: %v\n", taskID, payload)
+
 			return nil
 		},
 	)
@@ -61,9 +62,11 @@ func runProducer(ctx context.Context, taskQueue *taskqueue.TaskQueue) {
 		select {
 		case <-ticker.C:
 			logger.Info("producing task")
+
 			taskID, err := taskQueue.ProduceAt(ctx, &Payload{Body: fmt.Sprintf("%d", id)}, time.Now())
 			if err != nil {
 				logger.WithError(err).Error("failed to enqueue task")
+
 				break
 			}
 
@@ -73,6 +76,7 @@ func runProducer(ctx context.Context, taskQueue *taskqueue.TaskQueue) {
 
 		case <-ctx.Done():
 			logger.Info("stopping")
+
 			return
 		}
 	}
@@ -80,6 +84,7 @@ func runProducer(ctx context.Context, taskQueue *taskqueue.TaskQueue) {
 
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
+
 	serverType := os.Args[1]
 
 	ctx, cancel := context.WithCancel(context.Background())
