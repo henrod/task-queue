@@ -249,7 +249,7 @@ func TestTaskQueue_Consume(t *testing.T) { //nolint:funlen
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Cleanup(ctrl.Finish)
 
 	type fields struct {
 		queueKey         string
@@ -288,7 +288,6 @@ func TestTaskQueue_Consume(t *testing.T) { //nolint:funlen
 
 						return nil
 					}
-
 				},
 			},
 			mock: func(t *testing.T, ctx context.Context, mockRedis *taskqueue.MockRedis) {
