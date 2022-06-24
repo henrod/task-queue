@@ -11,4 +11,4 @@ setup:
 
 .PHONY: lint
 lint:
-	golangci-lint run --config .golangci.yml
+	golangci-lint run --config .golangci.yml --build-tags unit
