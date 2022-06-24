@@ -105,13 +105,11 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 					ScriptLoad(ctx, readScriptFile(t)).
 					Return(redis.NewStringCmd(ctx))
 
+				cmd := redis.NewIntCmd(ctx)
+				cmd.SetErr(errors.New("some error"))
 				mockRedis.EXPECT().
 					ZAdd(ctx, "taskqueue:test-namespace:tasks:test-queue", gomock.Any()).
-					DoAndReturn(func(_ context.Context, _ string, redisZ *redis.Z) *redis.IntCmd {
-						cmd := redis.NewIntCmd(ctx)
-						cmd.SetErr(errors.New("some error"))
-						return cmd
-					})
+					Return(cmd)
 			},
 			wantErr: true,
 		},
