@@ -79,6 +79,7 @@ func Process(queue string, job jobFunc, concurrency int) {
 	})
 }
 
+// Enqueue is not backward compatible yet since it retries by default.
 func Enqueue(queue, class string, args interface{}) (string, error) {
 	taskQueue, ok := taskQueueMapping[queue]
 	if !ok {
@@ -97,6 +98,7 @@ func Enqueue(queue, class string, args interface{}) (string, error) {
 	return taskID.String(), nil
 }
 
+// EnqueueWithOptions is not backward compatible yet since it doesn't accept another Redis connection.
 func EnqueueWithOptions(queue, class string, args interface{}, opts workers.EnqueueOptions) (string, error) {
 	return Enqueue(queue, class, args)
 }
