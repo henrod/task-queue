@@ -13,11 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	TYPE_CONSUMER = "consumer"
-	TYPE_PRODUCER = "producer"
-)
-
 type Payload struct {
 	Body string
 }
@@ -80,5 +75,35 @@ func runProducer(ctx context.Context, taskQueue *taskqueue.TaskQueue) {
 			logger.Info("stopping")
 			return
 		}
+	}
+}
+
+func main() {
+	logrus.SetLevel(logrus.DebugLevel)
+	serverType := os.Args[1]
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go handleStop(cancel)
+
+	options := &taskqueue.Options{
+		QueueKey:         "dummy-consumer",
+		Namespace:        "simple",
+		StorageAddress:   "localhost:6379",
+		WorkerID:         "worker1",
+		MaxRetries:       -1,
+		OperationTimeout: time.Minute,
+	}
+
+	taskQueue, err := taskqueue.NewTaskQueue(ctx, taskqueue.NewDefaultRedis(options), options)
+	if err != nil {
+		panic(err)
+	}
+
+	switch serverType {
+	case typeConsumer:
+		runConsumer(ctx, taskQueue)
+	case typeProducer:
+		runProducer(ctx, taskQueue)
 	}
 }
