@@ -1,0 +1,10 @@
+linters:
+  enable-all: true
+  disable:
+    - dogsled
+    - nonamedreturns
+    - maligned
+    - scopelint
+    - golint
+    - exhaustivestruct
+    - interfacer

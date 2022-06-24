@@ -2,7 +2,6 @@ package taskqueue
 
 import "time"
 
-// TODO: receive user's logger as optional
 type Options struct {
 	QueueKey         string
 	Namespace        string
@@ -30,7 +29,7 @@ func (o *Options) setDefaults() {
 	}
 
 	if o.OperationTimeout == 0 {
-		o.OperationTimeout = 5 * time.Second
+		o.OperationTimeout = 5 * time.Second // nolint:gomnd
 	}
 
 	if o.QueueKey == "" {

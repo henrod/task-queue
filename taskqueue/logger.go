@@ -8,13 +8,13 @@ const (
 	labelRetryCount = "retry_count"
 )
 
-func newLogger() logrus.FieldLogger {
+func newLogger() *logrus.Entry {
 	return logrus.New().WithFields(logrus.Fields{
 		labelPackage: "taskqueue",
 	})
 }
 
-func withTaskLabels(logger logrus.FieldLogger, task *Task) logrus.FieldLogger {
+func withTaskLabels(logger logrus.FieldLogger, task *Task) *logrus.Entry {
 	return logger.WithFields(logrus.Fields{
 		labelTaskID:     task.ID,
 		labelRetryCount: task.RetryCount,
