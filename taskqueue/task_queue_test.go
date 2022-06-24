@@ -2,6 +2,7 @@ package taskqueue_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"reflect"
 	"testing"
@@ -84,6 +85,34 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "test_failed_redis_err",
+			fields: fields{
+				queueKey:         "test-queue",
+				namespace:        "test-namespace",
+				storageAddress:   "",
+				workerID:         "worker-0",
+				maxRetries:       0,
+				operationTimeout: time.Minute,
+			},
+			args: args{
+				ctx:       ctx,
+				payload:   map[string]interface{}{"test": false},
+				executeAt: now,
+			},
+			mock: func(t *testing.T) {
+				mockRedis.EXPECT().
+					ScriptLoad(ctx, readScriptFile(t)).
+					Return(redis.NewStringCmd(ctx))
+
+				cmd := redis.NewIntCmd(ctx)
+				cmd.SetErr(errors.New("some error"))
+				mockRedis.EXPECT().
+					ZAdd(ctx, "taskqueue:test-namespace:tasks:test-queue", gomock.Any()).
+					Return(cmd)
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,7 +142,7 @@ func TestTaskQueue_ProduceAt(t *testing.T) {
 				t.Errorf("TaskQueue.ProduceAt() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if got == uuid.Nil {
+			if got == uuid.Nil && !tt.wantErr {
 				t.Errorf("TaskQueue.ProduceAt() = %v, want not nil", got)
 			}
 		})
@@ -129,4 +158,87 @@ func readScriptFile(t *testing.T) string {
 	}
 
 	return string(consumeScriptBytes)
+}
+
+func TestNewTaskQueue(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		now       = time.Now()
+		mockRedis *taskqueue.MockRedis
+		ctx       = context.Background()
+	)
+
+	type fields struct {
+		queueKey         string
+		namespace        string
+		storageAddress   string
+		workerID         string
+		maxRetries       int
+		operationTimeout time.Duration
+	}
+	type args struct {
+		ctx       context.Context
+		payload   interface{}
+		executeAt time.Time
+	}
+
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		mock    func(*testing.T)
+		wantErr bool
+	}{
+		{
+			name: "test_failed_instantiate_task_queue",
+			fields: fields{
+				queueKey:         "test-queue",
+				namespace:        "test-namespace",
+				storageAddress:   "",
+				workerID:         "worker-0",
+				maxRetries:       0,
+				operationTimeout: time.Minute,
+			},
+			args: args{
+				ctx:       ctx,
+				payload:   map[string]interface{}{"test": false},
+				executeAt: now,
+			},
+			mock: func(t *testing.T) {
+				cmd := redis.NewStringCmd(ctx)
+				cmd.SetErr(errors.New("some error"))
+				mockRedis.EXPECT().
+					ScriptLoad(ctx, readScriptFile(t)).
+					Return(cmd)
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options := &taskqueue.Options{
+				QueueKey:         tt.fields.queueKey,
+				Namespace:        tt.fields.namespace,
+				StorageAddress:   tt.fields.storageAddress,
+				WorkerID:         tt.fields.workerID,
+				MaxRetries:       tt.fields.maxRetries,
+				OperationTimeout: tt.fields.operationTimeout,
+			}
+			mockRedis = taskqueue.NewMockRedis(ctrl)
+			tt.mock(t)
+			got, err := taskqueue.NewTaskQueue(tt.args.ctx, mockRedis, options)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewTaskQueue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && got == nil {
+				t.Errorf("NewTaskQueue() expect TaskQueue not nil")
+				return
+			}
+		})
+	}
 }
