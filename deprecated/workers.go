@@ -5,23 +5,24 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"log"
 	"time"
 
 	"github.com/Henrod/task-queue/taskqueue"
-	"github.com/google/uuid"
-	"github.com/topfreegames/go-workers"
 )
 
 var (
 	baseOptions      *taskqueue.Options              // nolint:gochecknoglobals
 	taskQueueMapping map[string]*taskqueue.TaskQueue // nolint:gochecknoglobals
+	jobFuncMapping map[string]jobFunc // nolint:gochecknoglobals
 )
 
 var ErrQueueNotFound = errors.New("queue not registered to Process yet")
 
-type jobFunc func(message *workers.Msg)
+type jobFunc func(message *Msg)
 
+// Configure creates a base Options object based on the information provided in the options map.
 func Configure(optionsMap map[string]string) {
 	baseOptions = &taskqueue.Options{
 		QueueKey:         "",
@@ -33,12 +34,11 @@ func Configure(optionsMap map[string]string) {
 	}
 }
 
+// Process binds a job function to a specific queue.
 func Process(queue string, job jobFunc, concurrency int) {
 	ctx := context.Background()
-
 	options := baseOptions.Copy()
 	options.QueueKey = queue
-
 	redisClient := taskqueue.NewDefaultRedis(options)
 
 	taskQueue, err := taskqueue.NewTaskQueue(
@@ -51,43 +51,21 @@ func Process(queue string, job jobFunc, concurrency int) {
 
 		return
 	}
-
 	taskQueueMapping[queue] = taskQueue
-
-	go taskQueue.Consume(ctx, func(ctx context.Context, taskID uuid.UUID, payload interface{}) (err error) {
-		payloadBytes, err := json.Marshal(payload)
-		if err != nil {
-			return fmt.Errorf("failed to marshal payload: %w", err)
-		}
-
-		msg, err := workers.NewMsg(string(payloadBytes))
-		if err != nil {
-			return fmt.Errorf("failed to build *workers.Msg: %w", err)
-		}
-
-		defer func() {
-			if r := recover(); r != nil {
-				if panicErr, ok := r.(error); ok {
-					err = panicErr
-				}
-			}
-		}()
-
-		job(msg)
-
-		return nil
-	})
+	jobFuncMapping[queue] = job
 }
 
 // Enqueue is not backward compatible yet since it retries by default.
 func Enqueue(queue, class string, args interface{}) (string, error) {
+	ctx := context.Background()
+
 	taskQueue, ok := taskQueueMapping[queue]
 	if !ok {
 		return "", fmt.Errorf("%w: %s", ErrQueueNotFound, queue)
 	}
 
 	taskID, err := taskQueue.ProduceAt(
-		context.Background(),
+		ctx,
 		args,
 		time.Now(),
 	)
@@ -99,6 +77,45 @@ func Enqueue(queue, class string, args interface{}) (string, error) {
 }
 
 // EnqueueWithOptions is not backward compatible yet since it doesn't accept another Redis connection.
-func EnqueueWithOptions(queue, class string, args interface{}, opts workers.EnqueueOptions) (string, error) {
+func EnqueueWithOptions(queue, class string, args interface{}, opts EnqueueOptions) (string, error) {
 	return Enqueue(queue, class, args)
+}
+
+// Run loops over all the queues configured and starts consuming each one of them using the respective jobs.
+func Run() {
+	ctx := context.Background()
+
+	for queueName, taskQueue := range taskQueueMapping {
+		go taskQueue.Consume(ctx, func(ctx context.Context, taskID uuid.UUID, payload interface{}) (err error) {
+			payloadBytes, err := json.Marshal(payload)
+			if err != nil {
+				return fmt.Errorf("failed to marshal payload: %w", err)
+			}
+
+			msg, err := NewMsg(string(payloadBytes))
+			if err != nil {
+				return fmt.Errorf("failed to build *workers.Msg: %w", err)
+			}
+
+			defer func() {
+				if r := recover(); r != nil {
+					if panicErr, ok := r.(error); ok {
+						err = panicErr
+					}
+				}
+			}()
+
+			job := jobFuncMapping[queueName]
+			job(msg)
+
+			return nil
+		})
+	}
+}
+
+// Quit loops over all the queues configured and removes their references so the GC can free the respective memory.
+func Quit() {
+	for queueName, _ := range taskQueueMapping {
+		taskQueueMapping[queueName] = nil
+	}
 }

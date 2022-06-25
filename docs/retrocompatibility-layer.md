@@ -14,7 +14,7 @@ Example usage:
 ```go
 package main
 import (
-	"https://github.com/Henrod/task-queue"
+	workers "github.com/Henrod/task-queue/deprecated"
 )
 func myJob(message *workers.Msg) {
   // do something with your message
