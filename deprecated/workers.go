@@ -65,7 +65,13 @@ func Process(queue string, job jobFunc, concurrency int) {
 
 		return
 	}
+	if taskQueueMapping == nil {
+		taskQueueMapping = map[string]*taskqueue.TaskQueue{}
+	}
 	taskQueueMapping[queue] = taskQueue
+	if jobFuncMapping == nil {
+		jobFuncMapping = map[string]jobFunc{}
+	}
 	jobFuncMapping[queue] = job
 }
 
