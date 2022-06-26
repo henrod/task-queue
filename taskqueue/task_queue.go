@@ -134,7 +134,6 @@ func (t *TaskQueue) consume(
 	consume ConsumeFunc,
 ) error {
 	logger := newLogger()
-	logger.Info("begin of consume func")
 
 	task, err := t.getTask(ctx)
 	if errors.Is(err, ErrNoTaskToConsume) {
@@ -142,12 +141,14 @@ func (t *TaskQueue) consume(
 	} else if err != nil {
 		return fmt.Errorf("failed to get task: %w", err)
 	}
+	if task == nil {
+		return errors.New("task is nil")
+	}
 
 	logger = withTaskLabels(logger, task)
 	defer t.removeInProgressTask(ctx, task)
 
 	logger.Debug("consuming task")
-	logger.Info("starting to process task")
 
 	err = consume(ctx, task.ID, task.Payload)
 	if err != nil {
