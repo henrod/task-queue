@@ -7,10 +7,12 @@ import (
 type data struct {
 	*simplejson.Json
 }
+
 type Msg struct {
 	*data
 	original string
 }
+
 func NewMsg(content string) (*Msg, error) {
 	if d, err := newData(content); err != nil {
 		return nil, err
@@ -18,6 +20,7 @@ func NewMsg(content string) (*Msg, error) {
 		return &Msg{d, content}, nil
 	}
 }
+
 func newData(content string) (*data, error) {
 	if json, err := simplejson.NewJson([]byte(content)); err != nil {
 		return nil, err

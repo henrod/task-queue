@@ -1,9 +1,5 @@
 package deprecated
 
-import (
-	"github.com/garyburd/redigo/redis"
-)
-
 type EnqueueOptions struct {
 	RetryCount        int               `json:"retry_count,omitempty"`
 	Retry             bool              `json:"retry,omitempty"`
@@ -20,7 +16,14 @@ type RetryOptions struct {
 	MaxRand  int `json:"max_rand"`
 }
 
+type Conn struct {
+	Err func() error
+	Close func()
+}
+type Pool struct {
+	Get func() Conn
+}
 type config struct {
-	Pool *redis.Pool
+	Pool *Pool
 }
 var Config *config
