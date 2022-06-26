@@ -11,6 +11,17 @@ type Options struct {
 	OperationTimeout time.Duration
 }
 
+func (o *Options) Copy() *Options {
+	return &Options{
+		QueueKey:         o.QueueKey,
+		Namespace:        o.Namespace,
+		StorageAddress:   o.StorageAddress,
+		WorkerID:         o.WorkerID,
+		MaxRetries:       o.MaxRetries,
+		OperationTimeout: o.OperationTimeout,
+	}
+}
+
 func (o *Options) setDefaults() {
 	if o.Namespace == "" {
 		o.Namespace = "default"
