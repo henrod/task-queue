@@ -144,12 +144,16 @@ func (t *TaskQueue) consume(
 	if task == nil {
 		return errors.New("task is nil")
 	}
+	logger.Info("task ID: ", task.ID.String())
 
 	logger = withTaskLabels(logger, task)
 	defer t.removeInProgressTask(ctx, task)
 
 	logger.Debug("consuming task")
 
+	if consume == nil {
+		return errors.New("consume func is nil")
+	}
 	err = consume(ctx, task.ID, task.Payload)
 	if err != nil {
 		logger.WithError(err).Debug("failed to consume, retrying after backoff")
