@@ -7,7 +7,7 @@ unit-tests:
 
 .PHONY: integration-tests
 integration-tests:
-	go test -timeout 5s -tags unit github.com/Henrod/task-queue/test
+	go test -timeout 3s -tags unit -v github.com/Henrod/task-queue/test
 
 .PHONY: setup
 setup:

@@ -30,8 +30,7 @@ func TestTaskQueueMainFlow(t *testing.T) {
 	StartProducer(ctx, taskQueue)
 	var waitGroup sync.WaitGroup
 	waitGroup.Add(1)
-	go StartConsumer(ctx, cancel, taskQueue, waitGroup)
-	waitGroup.Wait()
+	StartConsumer(ctx, cancel, taskQueue, waitGroup)
 }
 
 type Payload struct {
@@ -42,7 +41,7 @@ func StartProducer(ctx context.Context, taskQueue *taskqueue.TaskQueue) error {
 	id := 1234
 	_, err := taskQueue.ProduceAt(ctx, &Payload{Body: fmt.Sprintf("%d", id)}, time.Now())
 	if err != nil {
-		return err	
+		return err
 	}
 	return nil
 }
@@ -51,9 +50,9 @@ func StartConsumer(ctx context.Context, cancel context.CancelFunc, taskQueue *ta
 	taskQueue.Consume(
 		ctx,
 		func(ctx context.Context, taskID uuid.UUID, payload interface{}) error {
-			defer waitGroup.Done()
+			waitGroup.Done()
+			waitGroup.Wait()
 			cancel()
-			ctx.Done()
 			return nil
 		},
 	)
