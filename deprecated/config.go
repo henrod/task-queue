@@ -20,10 +20,11 @@ type Conn struct {
 	Err func() error
 	Close func()
 }
+
 type Pool struct {
 	Get func() Conn
 }
+
 type config struct {
 	Pool *Pool
 }
-var Config *config

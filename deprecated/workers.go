@@ -21,6 +21,7 @@ var (
 var ErrQueueNotFound = errors.New("queue not registered to Process yet")
 
 type jobFunc func(message *Msg)
+var Config *config
 
 // Configure creates a base Options object based on the information provided in the options map.
 func Configure(optionsMap map[string]string) {
@@ -31,6 +32,19 @@ func Configure(optionsMap map[string]string) {
 		WorkerID:         optionsMap["process"],
 		MaxRetries:       -1,
 		OperationTimeout: time.Minute,
+	}
+
+	Config = &config{
+		Pool: &Pool{
+			Get: func() Conn {
+				return Conn{
+					Err: func() error {
+						return nil
+					},
+					Close: func() {},
+				}
+			},
+		},
 	}
 }
 
