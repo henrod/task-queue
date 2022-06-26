@@ -154,7 +154,11 @@ func EnqueueWithOptions(queue, class string, args interface{}, opts EnqueueOptio
 func Run() {
 	ctx := context.Background()
 
-	for queueName, taskQueue := range taskQueueMapping {
+	for queueKey, taskQueue := range taskQueueMapping {
+
+		if taskQueue == nil {
+			log.Printf("nil task queue attached to queue %s", queueKey)
+		}
 
 		go taskQueue.Consume(ctx, func(ctx context.Context, taskID uuid.UUID, payload interface{}) (err error) {
 			payloadBytes, err := json.Marshal(payload)
@@ -175,7 +179,13 @@ func Run() {
 				}
 			}()
 
-			job := jobFuncMapping[queueName]
+			job, ok := jobFuncMapping[queueKey]
+			if !ok {
+				return fmt.Errorf("no job func mapped to queue %s", queueKey)
+			}
+			if job == nil {
+				return fmt.Errorf("nil job func mapped to queue %s", queueKey)
+			}
 			job(msg)
 
 			return nil
