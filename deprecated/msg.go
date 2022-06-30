@@ -1,6 +1,7 @@
 package deprecated
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/bitly/go-simplejson"
 )
@@ -28,8 +29,17 @@ func newData(content string) (*data, error) {
 		return nil, fmt.Errorf("failed to convert content to simpleJson: %w", err)
 	}
 
-	dataJSON := simplejson.New()
-	dataJSON.Set("args", contentJson)
+	contentMap := map[string]interface{}{}
+	contentMap["args"] = contentJson
+	contentMapBytes, err := json.Marshal(contentMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal contentMap: %w", err)
+	}
 
-	return &data{dataJSON}, nil
+	parentJson, err := simplejson.NewJson(contentMapBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert contentMap to simpleJson: %w", err)
+	}
+
+	return &data{parentJson}, nil
 }
