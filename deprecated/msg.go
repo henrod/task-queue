@@ -1,6 +1,7 @@
 package deprecated
 
 import (
+	"fmt"
 	"github.com/bitly/go-simplejson"
 )
 
@@ -22,9 +23,13 @@ func NewMsg(content string) (*Msg, error) {
 }
 
 func newData(content string) (*data, error) {
-	if json, err := simplejson.NewJson([]byte(content)); err != nil {
-		return nil, err
-	} else {
-		return &data{json}, nil
+	contentJson, err := simplejson.NewJson([]byte(content))
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert content to simpleJson: %w", err)
 	}
+
+	dataJSON := simplejson.New()
+	dataJSON.Set("args", contentJson)
+
+	return &data{dataJSON}, nil
 }
